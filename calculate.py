@@ -7,7 +7,7 @@ import os
 
 
 def main():
-    os.makedirs('out', exist_ok=True)
+    os.makedirs('out/out_calculate', exist_ok=True)
 
     json_file = 'input.json'
     with open(json_file, 'r') as f:
@@ -76,9 +76,9 @@ def main():
     corr = correlation_matrix.copy()
 
     # Save dataframes to CSV
-    calc_in.to_csv('out/calc_in.csv', index=False)
-    vol.to_csv('out/vol.csv', index=False)
-    corr.to_csv('out/corr.csv')
+    calc_in.to_csv('out/out_calculate/calc_in.csv', index=False)
+    vol.to_csv('out/out_calculate/vol.csv', index=False)
+    corr.to_csv('out/out_calculate/corr.csv')
 
     print("Calculation complete!")
 
