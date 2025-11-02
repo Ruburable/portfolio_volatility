@@ -5,13 +5,15 @@ import os
 
 
 def main():
-    if not os.path.exists('out'):
-        print("Visualisation failed")
+    if not os.path.exists('out/out_calculate'):
+        print("Error: 'out/out_calculate' folder not found. Run main script first.")
         return
 
-    calc_in = pd.read_csv('out/calc_in.csv')
-    vol = pd.read_csv('out/vol.csv')
-    corr = pd.read_csv('out/corr.csv', index_col=0)
+    os.makedirs('out/out_visualise', exist_ok=True)
+
+    calc_in = pd.read_csv('out/out_calculate/calc_in.csv')
+    vol = pd.read_csv('out/out_calculate/vol.csv')
+    corr = pd.read_csv('out/out_calculate/corr.csv', index_col=0)
 
     vol['date'] = pd.to_datetime(vol['date'])
 
@@ -23,7 +25,7 @@ def main():
     plt.plot(vol['date'], vol['volatility'], linewidth=2, color='#2E86AB')
     plt.fill_between(vol['date'], vol['volatility'], alpha=0.3, color='#2E86AB')
 
-    plt.title(f'{portfolio_name} - Rolling {window}-Day Annualised Volatility', fontsize=16, fontweight='bold')
+    plt.title(f'{portfolio_name} - Rolling {window}-Day Annualized Volatility', fontsize=16, fontweight='bold')
     plt.xlabel('Date', fontsize=12)
     plt.ylabel('Annualized Volatility', fontsize=12)
     plt.grid(True, alpha=0.3)
@@ -41,7 +43,7 @@ def main():
              bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
 
     plt.tight_layout()
-    plt.savefig('out/volatility.jpg', dpi=300, bbox_inches='tight')
+    plt.savefig('out/out_visualise/volatility.jpg', dpi=300, bbox_inches='tight')
     plt.close()
 
     # Plot correlation matrix
@@ -52,7 +54,7 @@ def main():
 
     plt.title(f'{portfolio_name} - Correlation Matrix', fontsize=16, fontweight='bold')
     plt.tight_layout()
-    plt.savefig('out/correlation.jpg', dpi=300, bbox_inches='tight')
+    plt.savefig('out/out_visualise/correlation.jpg', dpi=300, bbox_inches='tight')
     plt.close()
 
     print("Visualisation complete!")
