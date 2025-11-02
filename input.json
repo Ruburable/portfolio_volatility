@@ -1,0 +1,13 @@
+{
+  "portfolio": {
+    "name": "Example Investment Portfolio",
+    "tickers": ["NFLX", "LULU", "JD", "REGN", "RHHBY", "UNH"],
+    "names": ["Netflix", "Lululemon", "JD.com", "Regeneron", "Roche", "UnitedHealth"],
+    "weights": [0.2059, 0.1050, 0.0610, 0.3591, 0.1977, 0.0629]
+  },
+  "specs": {
+    "start_date": "2023-11-02",
+    "end_date": "2025-11-02",
+    "window": 30
+  }
+}
