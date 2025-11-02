@@ -23,7 +23,7 @@ def main():
     plt.plot(vol['date'], vol['volatility'], linewidth=2, color='#2E86AB')
     plt.fill_between(vol['date'], vol['volatility'], alpha=0.3, color='#2E86AB')
 
-    plt.title(f'{portfolio_name} - Rolling {window}-Day Annualized Volatility', fontsize=16, fontweight='bold')
+    plt.title(f'{portfolio_name} - Rolling {window}-Day Annualised Volatility', fontsize=16, fontweight='bold')
     plt.xlabel('Date', fontsize=12)
     plt.ylabel('Annualized Volatility', fontsize=12)
     plt.grid(True, alpha=0.3)
