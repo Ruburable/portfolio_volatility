@@ -1,28 +1,39 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-import os
 from matplotlib.colors import LinearSegmentedColormap
 import numpy as np
-
+import json
+import os
 
 def main():
     if not os.path.exists('out/out_calculate'):
         print("Error: 'out/out_calculate' folder not found. Run main script first.")
         return
 
+    if not os.path.exists('out/out_optimise'):
+        print("Error: 'out/out_optimise' folder not found. Run optimise script first.")
+        return
+
     os.makedirs('out/out_visualise', exist_ok=True)
+
+    with open('input.json', 'r') as f:
+        data = json.load(f)
+    portfolio_name = data['portfolio']['name']
 
     calc_in = pd.read_csv('out/out_calculate/calc_in.csv')
     vol = pd.read_csv('out/out_calculate/vol.csv')
     corr = pd.read_csv('out/out_calculate/corr.csv', index_col=0)
+
+    stats_df = pd.read_csv('out/out_optimise/portfolio_stats.csv')
+    results_df = pd.read_csv('out/out_optimise/simulation_results.csv')
 
     vol['date'] = pd.to_datetime(vol['date'])
 
     portfolio_name = calc_in['portfolio_name'].iloc[0]
     window = calc_in['window'].iloc[0]
 
-    # Plot volatility with improved styling
+    # Plot volatility
     plt.style.use('dark_background')
     plt.figure(figsize=(14, 7))
     plt.rcParams['font.family'] = 'sans-serif'
@@ -59,12 +70,15 @@ def main():
     plt.savefig('out/out_visualise/volatility.jpg', dpi=300, bbox_inches='tight', facecolor='#1a1a1a')
     plt.close()
 
-    corr_display = corr.copy()
-    np.fill_diagonal(corr_display.values, np.nan)
+    # Correlation
 
+    corr_display = corr.copy()
+    np.fill_diagonal(corr_display.values, np.nan) # Remove values on main diagonal
+
+    # Create custom color map
     colors = [
         (0.0, (0.0, 0.0, 0.0, 0.0)),
-        (0.5, (0.32, 0.72, 0.53, 1.0)),
+        (0.5, (0.32, 0.72, 0.53, 1.0)),  # (#52B788)
         (1.0, (0.0, 0.0, 0.0, 0.0))
     ]
 
@@ -75,7 +89,6 @@ def main():
     fig, ax = plt.subplots(figsize=(10, 8), facecolor='#1a1a1a')
     ax.set_facecolor('#1a1a1a')
 
-    # Create mask for annotations (hide diagonal)
     mask_annot = np.eye(len(corr), dtype=bool)
     annot_data = corr.copy()
     annot_data[mask_annot] = np.nan
@@ -92,6 +105,59 @@ def main():
 
     plt.tight_layout()
     plt.savefig('out/out_visualise/correlation.jpg', dpi=300, bbox_inches='tight', facecolor='#1a1a1a')
+    plt.close()
+
+    # Efficient Frontier
+    optimal_return = stats_df[stats_df['portfolio_type'] == 'Optimal']['expected_return'].iloc[0]
+    optimal_std = stats_df[stats_df['portfolio_type'] == 'Optimal']['volatility'].iloc[0]
+    optimal_sharpe = stats_df[stats_df['portfolio_type'] == 'Optimal']['sharpe_ratio'].iloc[0]
+
+    current_return = stats_df[stats_df['portfolio_type'] == 'Current']['expected_return'].iloc[0]
+    current_std = stats_df[stats_df['portfolio_type'] == 'Current']['volatility'].iloc[0]
+    current_sharpe = stats_df[stats_df['portfolio_type'] == 'Current']['sharpe_ratio'].iloc[0]
+
+    colors_green = ['#90EE90', '#52B788', '#2D6A4F', '#1B4332']
+    cmap_green = LinearSegmentedColormap.from_list('green_gradient', colors_green)
+
+    sharpe_min = results_df['sharpe_ratio'].min()
+    sharpe_max = results_df['sharpe_ratio'].max()
+
+    optimal_color_value = (optimal_sharpe - sharpe_min) / (sharpe_max - sharpe_min)
+    optimal_color = cmap_green(optimal_color_value)
+
+    current_color_value = (current_sharpe - sharpe_min) / (sharpe_max - sharpe_min)
+    current_red = '#8B0000' if current_color_value < 0.5 else '#FF6B6B'
+
+    plt.style.use('dark_background')
+    fig = plt.figure(figsize=(12, 8))
+    plt.rcParams['font.family'] = 'sans-serif'
+    plt.rcParams['font.weight'] = 'light'
+
+    scatter = plt.scatter(results_df['volatility'], results_df['returns'],
+                          c=results_df['sharpe_ratio'], cmap=cmap_green,
+                          alpha=0.4, s=10)
+    cbar = plt.colorbar(scatter, label='Sharpe Ratio')
+    cbar.ax.yaxis.label.set_color('white')
+    cbar.ax.tick_params(colors='white')
+
+    plt.scatter(optimal_std, optimal_return, marker='o', color=optimal_color, s=200,
+                edgecolors='white', linewidth=2, label='Optimal Portfolio', zorder=5)
+
+    plt.scatter(current_std, current_return, marker='o', color=current_red, s=200,
+                edgecolors='white', linewidth=2, label='Current Portfolio', zorder=5)
+
+    plt.title(f'{portfolio_name} - Efficient Frontier (Monte Carlo)', fontsize=16, fontweight='light', color='white')
+    plt.xlabel('Volatility (Std Dev)', fontsize=12, fontweight='light', color='white')
+    plt.ylabel('Expected Return', fontsize=12, fontweight='light', color='white')
+    plt.legend(fontsize=10, loc='upper left')
+    plt.grid(True, alpha=0.2, linestyle='--', color='gray')
+
+    plt.gca().xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: '{:.1%}'.format(x)))
+    plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: '{:.1%}'.format(y)))
+    plt.gca().tick_params(colors='white')
+
+    plt.tight_layout()
+    plt.savefig('out/out_visualise/efficient_frontier.jpg', dpi=300, bbox_inches='tight', facecolor='#1a1a1a')
     plt.close()
 
     print("Visualisation complete!")
