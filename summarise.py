@@ -28,7 +28,7 @@ def main():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>{portfolio_name} - Portfolio Analysis</title>
+        <title>{portfolio_name} - Portfolio Analysis Deck</title>
         <style>
             * {{
                 margin: 0;
@@ -40,130 +40,208 @@ def main():
                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
                 background-color: #0a0a0a;
                 color: #ffffff;
-                line-height: 1.6;
-            }}
-
-            .container {{
-                max-width: 1400px;
-                margin: 0 auto;
-                padding: 40px 20px;
+                overflow: hidden;
+                height: 100vh;
+                display: flex;
+                flex-direction: column;
             }}
 
             header {{
                 text-align: center;
-                margin-bottom: 60px;
-                padding: 40px 0;
+                padding: 30px 0 20px 0;
                 border-bottom: 2px solid #52B788;
+                background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
             }}
 
-            h1 {{
-                font-size: 3em;
+            header h1 {{
+                font-size: 2.5em;
                 font-weight: 300;
-                margin-bottom: 10px;
                 color: #52B788;
+                margin-bottom: 5px;
             }}
 
-            .subtitle {{
-                font-size: 1.2em;
+            header .subtitle {{
+                font-size: 1em;
                 color: #aaaaaa;
                 font-weight: 300;
             }}
 
-            .section {{
-                margin-bottom: 80px;
+            .dashboard {{
+                flex: 1;
+                display: grid;
+                grid-template-columns: 1fr 1fr 1fr;
+                grid-template-rows: 1fr 1fr;
+                gap: 20px;
+                padding: 20px;
+                overflow: hidden;
             }}
 
-            .section-title {{
-                font-size: 2em;
+            .chart-card {{
+                background-color: #1a1a1a;
+                border-radius: 15px;
+                padding: 20px;
+                display: flex;
+                flex-direction: column;
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+                cursor: pointer;
+                transition: transform 0.2s ease;
+            }}
+
+            .chart-card:hover {{
+                transform: scale(1.02);
+            }}
+
+            .chart-card.top-left {{
+                grid-column: 1;
+                grid-row: 1 / 3;
+            }}
+
+            .chart-card.middle {{
+                grid-column: 2;
+                grid-row: 1 / 3;
+            }}
+
+            .chart-card.top-right {{
+                grid-column: 3;
+                grid-row: 1 / 3;
+            }}
+
+            .chart-title {{
+                font-size: 1.3em;
                 font-weight: 300;
-                margin-bottom: 30px;
                 color: #52B788;
-                border-left: 4px solid #52B788;
-                padding-left: 20px;
+                margin-bottom: 15px;
+                text-align: center;
             }}
 
             .chart-container {{
-                background-color: #1a1a1a;
-                border-radius: 10px;
-                padding: 30px;
-                margin-bottom: 40px;
-                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+                flex: 1;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                overflow: hidden;
             }}
 
             .chart-container img {{
+                max-width: 100%;
+                max-height: 100%;
+                object-fit: contain;
+                border-radius: 10px;
+            }}
+
+            .modal {{
+                display: none;
+                position: fixed;
+                z-index: 1000;
+                left: 0;
+                top: 0;
                 width: 100%;
-                height: auto;
-                border-radius: 5px;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.95);
+                justify-content: center;
+                align-items: center;
             }}
 
-            .two-column {{
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 30px;
+            .modal.active {{
+                display: flex;
             }}
 
-            footer {{
-                text-align: center;
-                padding: 40px 0;
-                border-top: 1px solid #333;
-                color: #888;
-                font-size: 0.9em;
+            .modal-content {{
+                max-width: 95%;
+                max-height: 95%;
+                object-fit: contain;
+                border-radius: 10px;
             }}
 
-            @media (max-width: 768px) {{
-                .two-column {{
+            .close-modal {{
+                position: absolute;
+                top: 30px;
+                right: 30px;
+                font-size: 3em;
+                color: #52B788;
+                cursor: pointer;
+                font-weight: 300;
+                transition: transform 0.2s ease;
+            }}
+
+            .close-modal:hover {{
+                transform: scale(1.2);
+            }}
+
+            @media (max-width: 1200px) {{
+                .dashboard {{
                     grid-template-columns: 1fr;
+                    grid-template-rows: repeat(3, 1fr);
                 }}
 
-                h1 {{
-                    font-size: 2em;
-                }}
-
-                .section-title {{
-                    font-size: 1.5em;
+                .chart-card.top-left,
+                .chart-card.middle,
+                .chart-card.top-right {{
+                    grid-column: 1;
+                    grid-row: auto;
                 }}
             }}
         </style>
     </head>
     <body>
-        <div class="container">
-            <header>
-                <h1>{portfolio_name}</h1>
-                <p class="subtitle">Portfolio Analysis Report</p>
-                <p class="subtitle">Generated on {datetime.now().strftime('%B %d, %Y')}</p>
-            </header>
+        <header>
+            <h1>{portfolio_name}</h1>
+            <p class="subtitle">Portfolio Analysis Dashboard | Generated on {datetime.now().strftime('%B %d, %Y')}</p>
+        </header>
 
-            <div class="section">
-                <h2 class="section-title">Portfolio Volatility Analysis</h2>
+        <div class="dashboard">
+            <div class="chart-card top-left" onclick="openModal('volatility')">
+                <h3 class="chart-title">Portfolio Volatility Analysis</h3>
                 <div class="chart-container">
-                    <img src="data:image/jpeg;base64,{volatility_img}" alt="Volatility Chart">
+                    <img id="volatility-img" src="data:image/jpeg;base64,{volatility_img}" alt="Volatility Chart">
                 </div>
             </div>
 
-            <div class="section">
-                <h2 class="section-title">Asset Correlation Matrix</h2>
+            <div class="chart-card middle" onclick="openModal('correlation')">
+                <h3 class="chart-title">Asset Correlation Matrix</h3>
                 <div class="chart-container">
-                    <img src="data:image/jpeg;base64,{correlation_img}" alt="Correlation Matrix">
+                    <img id="correlation-img" src="data:image/jpeg;base64,{correlation_img}" alt="Correlation Matrix">
                 </div>
             </div>
 
-            <div class="section">
-                <h2 class="section-title">Efficient Frontier & Portfolio Optimization</h2>
+            <div class="chart-card top-right" onclick="openModal('frontier')">
+                <h3 class="chart-title">Efficient Frontier & Portfolio Optimization</h3>
                 <div class="chart-container">
-                    <img src="data:image/jpeg;base64,{frontier_img}" alt="Efficient Frontier">
+                    <img id="frontier-img" src="data:image/jpeg;base64,{frontier_img}" alt="Efficient Frontier">
                 </div>
             </div>
-
-            <footer>
-                <p>Portfolio Analysis Dashboard | Modern Portfolio Theory | Monte Carlo Simulation</p>
-            </footer>
         </div>
+
+        <div class="modal" id="modal" onclick="closeModal()">
+            <span class="close-modal">&times;</span>
+            <img class="modal-content" id="modal-img">
+        </div>
+
+        <script>
+            function openModal(imageId) {{
+                const modal = document.getElementById('modal');
+                const modalImg = document.getElementById('modal-img');
+                const img = document.getElementById(imageId + '-img');
+
+                modal.classList.add('active');
+                modalImg.src = img.src;
+            }}
+
+            function closeModal() {{
+                const modal = document.getElementById('modal');
+                modal.classList.remove('active');
+            }}
+
+            document.addEventListener('keydown', (e) => {{
+                if (e.key === 'Escape') closeModal();
+            }});
+        </script>
     </body>
     </html>
     """
 
     output_path = 'out/portfolio_report.html'
-    with open(output_path, 'w') as f:
+    with open(output_path, 'w', encoding='utf-8') as f:
         f.write(html_content)
 
     print(f"Report generated: {output_path}")
