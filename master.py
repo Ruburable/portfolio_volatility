@@ -17,19 +17,24 @@ def run_script(script_name):
 def main():
     print("Starting portfolio analysis pipeline...\n")
 
-    print("Step 1/3: Running calculations...")
+    print("Step 1/4: Running calculations...")
     if not run_script('calculate.py'):
         print("Calculation failed. Stopping pipeline.")
         return
 
-    print("\nStep 2/3: Running optimisation...")
+    print("\nStep 2/4: Running optimisation...")
     if not run_script('optimise.py'):
         print("Optimisation failed. Stopping pipeline.")
         return
 
-    print("\nStep 3/3: Creating visualisations...")
+    print("\nStep 3/4: Creating visualisations...")
     if not run_script('visualise.py'):
         print("Visualisation failed. Stopping pipeline.")
+        return
+
+    print("\nStep 4/4: Generating report...")
+    if not run_script('summarise.py'):
+        print("Report generation failed. Stopping pipeline.")
         return
 
     print("\n" + "=" * 50)
@@ -37,6 +42,7 @@ def main():
     print("  - out/out_calculate/")
     print("  - out/out_optimise/")
     print("  - out/out_visualise/")
+    print("  - out/portfolio_report.html")
     print("=" * 50)
 
 
