@@ -10,11 +10,9 @@ def image_to_base64(image_path):
 
 
 def main():
-    if not os.path.exists('out/out_visualise') or not os.path.exists('out/out_optimise'):
-        print("Error: Required output folders not found. Run calculate, optimise, and visualise first.")
+    if not os.path.exists('out/out_visualise'):
+        print("Error: 'out/out_visualise' folder not found. Run all scripts first.")
         return
-
-    os.makedirs('out', exist_ok=True)
 
     with open('input.json', 'r') as f:
         data = json.load(f)
@@ -22,7 +20,7 @@ def main():
 
     volatility_img = image_to_base64('out/out_visualise/volatility.jpg')
     correlation_img = image_to_base64('out/out_visualise/correlation.jpg')
-    frontier_img = image_to_base64('out/out_optimise/efficient_frontier.jpg')
+    frontier_img = image_to_base64('out/out_visualise/efficient_frontier.jpg')
 
     html_content = f"""
     <!DOCTYPE html>
