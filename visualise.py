@@ -39,73 +39,85 @@ def main():
     plt.rcParams['font.family'] = 'sans-serif'
     plt.rcParams['font.weight'] = 'light'
 
-    plt.plot(vol['date'], vol['volatility'], linewidth=2, color='#52B788')
-    plt.fill_between(vol['date'], vol['volatility'], alpha=0.4, color='#52B788')
+    vol['volatility'] = pd.to_numeric(vol['volatility'], errors='coerce')
+    vol['date'] = pd.to_datetime(vol['date'], errors='coerce')
+    vol = vol.dropna(subset=['date', 'volatility'])
 
-    plt.title(f'Rolling {window}-Day Annualized Volatility', fontsize=14, fontweight='light', color='white')
-    plt.xlabel('Date', fontsize=11, fontweight='light', color='white')
-    plt.ylabel('Annualized Volatility', fontsize=11, fontweight='light', color='white')
-    plt.grid(True, alpha=0.2, linestyle='--', color='gray')
+    if vol.empty:
+        print("Warning: No valid volatility data available for plotting.")
+    else:
+        vol = vol.sort_values(by='date')
 
-    # Set y-axis to start at 0
-    plt.ylim(bottom=0)
+        plt.plot(vol['date'], vol['volatility'], linewidth=2, color='#52B788')
+        plt.fill_between(vol['date'], vol['volatility'], alpha=0.4, color='#52B788')
 
-    # Set x-axis limits to data range (no gaps)
-    plt.xlim(vol['date'].iloc[0], vol['date'].iloc[-1])
+        plt.title(f'Rolling {window}-Day Annualized Volatility', fontsize=14, fontweight='light', color='white')
+        plt.xlabel('Date', fontsize=11, fontweight='light', color='white')
+        plt.ylabel('Annualized Volatility', fontsize=11, fontweight='light', color='white')
+        plt.grid(True, alpha=0.2, linestyle='--', color='gray')
 
-    plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: '{:.1%}'.format(y)))
-    plt.gca().tick_params(colors='white')
+        plt.ylim(bottom=0)
+        plt.xlim(vol['date'].iloc[0], vol['date'].iloc[-1])
 
-    mean_vol = vol['volatility'].mean()
-    max_vol = vol['volatility'].max()
-    min_vol = vol['volatility'].min()
-    current_vol = vol['volatility'].iloc[-1]
+        plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: '{:.1%}'.format(y)))
+        plt.gca().tick_params(colors='white')
 
-    stats_text = f'{portfolio_name}\n\nCurrent: {current_vol:.2%}\nMean: {mean_vol:.2%}\nMax: {max_vol:.2%}\nMin: {min_vol:.2%}'
-    plt.text(0.02, 0.98, stats_text, transform=plt.gca().transAxes,
-             fontsize=9, verticalalignment='top', fontweight='light', color='white',
-             bbox=dict(boxstyle='round', facecolor='#1a1a1a', alpha=0.9, edgecolor='#52B788', linewidth=1.5))
+        mean_vol = vol['volatility'].mean()
+        max_vol = vol['volatility'].max()
+        min_vol = vol['volatility'].min()
+        current_vol = vol['volatility'].iloc[-1]
 
-    plt.tight_layout()
-    plt.savefig('out/out_visualise/volatility.jpg', dpi=300, bbox_inches='tight', facecolor='#1a1a1a')
-    plt.close()
+        stats_text = f'{portfolio_name}\n\nCurrent: {current_vol:.2%}\nMean: {mean_vol:.2%}\nMax: {max_vol:.2%}\nMin: {min_vol:.2%}'
+        plt.text(0.02, 0.98, stats_text, transform=plt.gca().transAxes,
+                 fontsize=9, verticalalignment='top', fontweight='light', color='white',
+                 bbox=dict(boxstyle='round', facecolor='#1a1a1a', alpha=0.9, edgecolor='#52B788', linewidth=1.5))
+
+        plt.tight_layout()
+        plt.savefig('out/out_visualise/volatility.jpg', dpi=300, bbox_inches='tight', facecolor='#1a1a1a')
+        plt.close()
 
     # Correlation
+    try:
+        corr_display = corr.copy()
+        corr_display = corr_display.apply(pd.to_numeric, errors='coerce')
+        corr_display = corr_display.replace([np.inf, -np.inf], np.nan)
 
-    corr_display = corr.copy()
-    np.fill_diagonal(corr_display.values, np.nan) # Remove values on main diagonal
+        if corr_display.isna().all().all():
+            print("Warning: Correlation matrix contains no valid numeric data. Skipping heatmap.")
+        else:
+            np.fill_diagonal(corr_display.values, np.nan)
+            corr_display = corr_display.astype(float)
+            corr_plot = corr_display.fillna(0.0)
 
-    # Create custom color map
-    colors = [
-        (0.0, (0.0, 0.0, 0.0, 0.0)),
-        (0.5, (0.32, 0.72, 0.53, 1.0)),  # (#52B788)
-        (1.0, (0.0, 0.0, 0.0, 0.0))
-    ]
+            colors = [
+                (0.0, (0.0, 0.0, 0.0, 0.0)),
+                (0.5, (0.32, 0.72, 0.53, 1.0)),
+                (1.0, (0.0, 0.0, 0.0, 0.0))
+            ]
+            cmap = LinearSegmentedColormap.from_list('green_transparent', [c[1] for c in colors], N=256)
 
-    cmap = LinearSegmentedColormap.from_list('green_transparent',
-                                             [c[1] for c in colors],
-                                             N=256)
+            fig, ax = plt.subplots(figsize=(10, 8), facecolor='#1a1a1a')
+            ax.set_facecolor('#1a1a1a')
 
-    fig, ax = plt.subplots(figsize=(10, 8), facecolor='#1a1a1a')
-    ax.set_facecolor('#1a1a1a')
+            mask_annot = np.eye(len(corr_plot), dtype=bool)
+            annot_data = corr_display.copy()
+            annot_data[mask_annot] = np.nan
 
-    mask_annot = np.eye(len(corr), dtype=bool)
-    annot_data = corr.copy()
-    annot_data[mask_annot] = np.nan
+            sns.heatmap(corr_plot, annot=annot_data, fmt='.2f', cmap=cmap,
+                        center=0, square=True, linewidths=1, linecolor='#2a2a2a',
+                        cbar_kws={"shrink": 0.8}, vmin=-1, vmax=1, ax=ax,
+                        annot_kws={'color': 'white', 'fontsize': 10})
 
-    sns.heatmap(corr_display, annot=annot_data, fmt='.2f', cmap=cmap,
-                center=0, square=True, linewidths=1, linecolor='#2a2a2a',
-                cbar_kws={"shrink": 0.8}, vmin=-1, vmax=1, ax=ax,
-                annot_kws={'color': 'white', 'fontsize': 10})
+            plt.title(f'{portfolio_name} - Correlation Matrix', fontsize=16, fontweight='light', color='white', pad=20)
+            ax.tick_params(colors='white')
+            plt.setp(ax.get_xticklabels(), color='white', rotation=45, ha='right')
+            plt.setp(ax.get_yticklabels(), color='white')
 
-    plt.title(f'{portfolio_name} - Correlation Matrix', fontsize=16, fontweight='light', color='white', pad=20)
-    ax.tick_params(colors='white')
-    plt.setp(ax.get_xticklabels(), color='white')
-    plt.setp(ax.get_yticklabels(), color='white')
-
-    plt.tight_layout()
-    plt.savefig('out/out_visualise/correlation.jpg', dpi=300, bbox_inches='tight', facecolor='#1a1a1a')
-    plt.close()
+            plt.tight_layout()
+            plt.savefig('out/out_visualise/correlation.jpg', dpi=300, bbox_inches='tight', facecolor='#1a1a1a')
+            plt.close()
+    except Exception as e:
+        print(f"Error while plotting correlation heatmap: {e}")
 
     # Efficient Frontier
     optimal_return = stats_df[stats_df['portfolio_type'] == 'Optimal']['expected_return'].iloc[0]
