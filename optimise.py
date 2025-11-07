@@ -17,7 +17,6 @@ def main():
 
     tickers = portfolio['tickers']
     current_weights = np.array(portfolio['weights'])
-    portfolio_name = portfolio['name']
 
     start_date = datetime.strptime(specs['start_date'], '%Y-%m-%d')
     end_date = datetime.strptime(specs['end_date'], '%Y-%m-%d')
