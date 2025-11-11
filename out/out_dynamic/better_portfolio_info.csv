@@ -1,0 +1,2 @@
+simulation_index,expected_return,volatility,sharpe_ratio,sharpe_improvement_pct,return_improvement_pct,similar_volatility_count
+35192,0.3587662619981649,0.2045006167420819,1.754352958507916,519.7441318020946,528.909520846889,15993
