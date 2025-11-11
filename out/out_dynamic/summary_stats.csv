@@ -1,0 +1,10 @@
+metric,value
+Current Sharpe Ratio,0.2831
+Better Dynamic Sharpe Ratio,1.7544
+Optimal Sharpe Ratio,1.7544
+Target Volatility,20.15%
+Better Portfolio Volatility,20.45%
+Optimal Portfolio Volatility,20.45%
+Expected Return Increase vs Current,528.91%
+Portfolios Analyzed,"100,000"
+Similar Volatility Portfolios Found,"15,993"
