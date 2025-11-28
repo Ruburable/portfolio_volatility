@@ -129,16 +129,17 @@ def main():
     if market_prices is not None:
         market_returns = market_prices.pct_change().dropna()
         common_dates = portfolio_returns.index.intersection(market_returns.index)
-        portfolio_returns_aligned = portfolio_returns.loc[common_dates]
-        market_returns_aligned = market_returns.loc[common_dates]
+        portfolio_returns_aligned = portfolio_returns.loc[common_dates].values.flatten()
+        market_returns_aligned = market_returns.loc[common_dates].values.flatten()
 
         # Calculate alpha (portfolio excess return vs market)
-        market_mean_return = market_returns_aligned.mean() * 252
+        market_mean_return = np.mean(market_returns_aligned) * 252
         alpha = current_return - market_mean_return
 
         # Calculate beta
-        covariance = np.cov(portfolio_returns_aligned, market_returns_aligned)[0, 1]
-        market_variance = market_returns_aligned.var()
+        covariance_matrix = np.cov(portfolio_returns_aligned, market_returns_aligned)
+        covariance = covariance_matrix[0, 1]
+        market_variance = np.var(market_returns_aligned, ddof=1)
         beta = covariance / market_variance
     else:
         alpha = None
