@@ -4,13 +4,48 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 import os
+import yfinance as yf
+from datetime import datetime
 
 
-def calculate_rebalance_cost(current_weights, target_weights):
-    """Calculate total rebalancing cost as % of portfolio value"""
-    weight_changes = np.abs(target_weights - current_weights)
-    total_trades = np.sum(weight_changes) / 2  # Divide by 2 since buying = selling
-    return total_trades
+def generate_buy_only_portfolios(current_weights, tickers, num_portfolios=100000):
+    portfolios = []
+    budget = 0.10
+
+    for _ in range(num_portfolios):
+        num_buys = np.random.choice([1, 2, 3, 4, 5])
+        num_buys = min(num_buys, len(tickers))
+        buy_indices = np.random.choice(len(tickers), size=num_buys, replace=False)
+
+        if num_buys == 1:
+            buy_amounts = [budget]
+        else:
+            splits = np.random.dirichlet(np.ones(num_buys))
+            splits = np.maximum(splits, 0.01)
+            splits = splits / splits.sum()
+            buy_amounts = splits * budget
+
+        new_weights = current_weights.copy()
+        total_before = np.sum(new_weights)
+
+        for idx, amount in zip(buy_indices, buy_amounts):
+            new_weights[idx] += amount
+
+        new_weights = new_weights / np.sum(new_weights)
+
+        trades = []
+        for idx, amount in zip(buy_indices, buy_amounts):
+            pct = (amount / total_before) * 100
+            trades.append(f"Buy {tickers[idx]} {pct:.1f}%")
+
+        portfolios.append({
+            'weights': new_weights,
+            'trades': '; '.join(trades),
+            'num_operations': num_buys,
+            'buy_tickers': ','.join([tickers[i] for i in buy_indices])
+        })
+
+    return portfolios
 
 
 def main():
@@ -19,242 +54,134 @@ def main():
     with open('input.json', 'r') as f:
         data = json.load(f)
     portfolio = data['portfolio']
+    specs = data['specs']
 
     tickers = portfolio['tickers']
     current_weights = np.array(portfolio['weights'])
     portfolio_name = portfolio['name']
 
     stats_df = pd.read_csv('out/out_optimise/portfolio_stats.csv')
-    results_df = pd.read_csv('out/out_optimise/simulation_results.csv')
+    current = stats_df[stats_df['portfolio_type'] == 'Current'].iloc[0]
+    current_return, current_std, current_sharpe = current['expected_return'], current['volatility'], current[
+        'sharpe_ratio']
 
-    current_return = stats_df[stats_df['portfolio_type'] == 'Current']['expected_return'].iloc[0]
-    current_std = stats_df[stats_df['portfolio_type'] == 'Current']['volatility'].iloc[0]
-    current_sharpe = stats_df[stats_df['portfolio_type'] == 'Current']['sharpe_ratio'].iloc[0]
+    start_date = datetime.strptime(specs['start_date'], '%Y-%m-%d')
+    end_date = datetime.strptime(specs['end_date'], '%Y-%m-%d')
 
-    # Load weights from Monte Carlo simulation
-    # We need to reconstruct weights from simulation or save them
-    # For now, we'll work with the results we have
+    prices = yf.download(tickers, start=start_date, end=end_date, progress=False, auto_adjust=False)
+    if isinstance(prices.columns, pd.MultiIndex):
+        prices = prices['Adj Close']
 
-    # Filter portfolios that are reachable with ≤10% rebalancing
-    # Since we don't have weights saved, we'll use a proxy approach
-    # Estimate based on return/volatility distance
+    returns = prices.pct_change().dropna()
+    mean_returns = returns.mean() * 252
+    cov_matrix = returns.cov() * 252
 
-    max_rebalance = 0.10  # 10% of portfolio value
+    print("Generating 100K buy-only portfolios...")
+    generated = generate_buy_only_portfolios(current_weights, tickers, 100000)
 
-    # Calculate normalized distances
-    return_distance = np.abs(results_df['returns'] - current_return)
-    vol_distance = np.abs(results_df['volatility'] - current_std)
+    print("Calculating metrics...")
+    results = []
+    for p in generated:
+        ret = np.sum(p['weights'] * mean_returns.values)
+        vol = np.sqrt(np.dot(p['weights'].T, np.dot(cov_matrix.values, p['weights'])))
+        sharpe = ret / vol if vol > 0 else 0
+        results.append({
+            'returns': ret, 'volatility': vol, 'sharpe_ratio': sharpe,
+            'trades': p['trades'], 'num_operations': p['num_operations'],
+            'return_improvement': ((ret - current_return) / current_return * 100),
+            'volatility_change': ((vol - current_std) / current_std * 100),
+            'sharpe_improvement': ((sharpe - current_sharpe) / current_sharpe * 100)
+        })
 
-    # Proxy for rebalancing cost: normalize and combine distances
-    # This is a heuristic - ideally we'd use actual weight differences
-    return_dist_norm = return_distance / results_df['returns'].std()
-    vol_dist_norm = vol_distance / results_df['volatility'].std()
-    estimated_rebalance = (return_dist_norm + vol_dist_norm) / 10  # Scale down
+    results_df = pd.DataFrame(results)
+    better = results_df[results_df['sharpe_ratio'] > current_sharpe].copy()
 
-    # Filter reachable portfolios
-    reachable_mask = estimated_rebalance <= max_rebalance
-    reachable = results_df[reachable_mask].copy()
+    print(f"Found {len(better):,} better portfolios")
 
-    # Category 1: Higher return, same or lower volatility
-    higher_return_mask = (reachable['returns'] > current_return) & \
-                         (reachable['volatility'] <= current_std * 1.02)  # 2% tolerance
-    higher_return_portfolios = reachable[higher_return_mask].copy()
+    # Get top 10 for each operation count
+    top_by_ops = []
+    for ops in range(1, 6):
+        ops_data = better[better['num_operations'] == ops]
+        if len(ops_data) > 0:
+            top_10 = ops_data.nlargest(10, 'sharpe_ratio')
+            top_by_ops.append(top_10)
 
-    # Category 2: Lower volatility, same or higher return
-    lower_vol_mask = (reachable['volatility'] < current_std) & \
-                     (reachable['returns'] >= current_return * 0.98)  # 2% tolerance
-    lower_vol_portfolios = reachable[lower_vol_mask].copy()
+    all_recommendations = pd.concat(top_by_ops, ignore_index=True) if top_by_ops else pd.DataFrame()
 
-    # Category 3: Better Sharpe ratio
-    better_sharpe_mask = reachable['sharpe_ratio'] > current_sharpe
-    better_sharpe_portfolios = reachable[better_sharpe_mask].copy()
-
-    # Get top 5 from each category
-    if len(higher_return_portfolios) > 0:
-        top_higher_return = higher_return_portfolios.nlargest(5, 'returns')
-        top_higher_return['category'] = 'Higher Return'
-    else:
-        top_higher_return = pd.DataFrame()
-
-    if len(lower_vol_portfolios) > 0:
-        top_lower_vol = lower_vol_portfolios.nsmallest(5, 'volatility')
-        top_lower_vol['category'] = 'Lower Volatility'
-    else:
-        top_lower_vol = pd.DataFrame()
-
-    if len(better_sharpe_portfolios) > 0:
-        top_better_sharpe = better_sharpe_portfolios.nlargest(5, 'sharpe_ratio')
-        top_better_sharpe['category'] = 'Better Sharpe'
-    else:
-        top_better_sharpe = pd.DataFrame()
-
-    # Combine all recommendations
-    all_recommendations = pd.concat([top_higher_return, top_lower_vol, top_better_sharpe], ignore_index=True)
-
-    # Remove duplicates
-    all_recommendations = all_recommendations.drop_duplicates(subset=['returns', 'volatility', 'sharpe_ratio'])
-
-    # Add improvement metrics
-    all_recommendations['return_improvement'] = (
-                (all_recommendations['returns'] - current_return) / current_return * 100)
-    all_recommendations['volatility_change'] = ((all_recommendations['volatility'] - current_std) / current_std * 100)
-    all_recommendations['sharpe_improvement'] = (
-                (all_recommendations['sharpe_ratio'] - current_sharpe) / current_sharpe * 100)
-
-    # Summary statistics
-    summary_stats = pd.DataFrame({
-        'metric': [
-            'Total Reachable Portfolios',
-            'Higher Return Options',
-            'Lower Volatility Options',
-            'Better Sharpe Options',
-            'Best Return Improvement',
-            'Best Volatility Reduction',
-            'Best Sharpe Improvement'
-        ],
-        'value': [
-            len(reachable),
-            len(higher_return_portfolios),
-            len(lower_vol_portfolios),
-            len(better_sharpe_portfolios),
-            f"{all_recommendations['return_improvement'].max():.2f}%" if len(all_recommendations) > 0 else "N/A",
-            f"{all_recommendations['volatility_change'].min():.2f}%" if len(all_recommendations) > 0 else "N/A",
-            f"{all_recommendations['sharpe_improvement'].max():.2f}%" if len(all_recommendations) > 0 else "N/A"
-        ]
-    })
-
-    # Save outputs
+    # Save
     all_recommendations.to_csv('out/out_reachable/reachable_portfolios.csv', index=False)
-    summary_stats.to_csv('out/out_reachable/summary_stats.csv', index=False)
 
-    # Create visualization
+    summary = pd.DataFrame({
+        'metric': ['Total Generated', 'Better Sharpe'] + [f'{i} Ops' for i in range(1, 6)],
+        'value': [len(results_df), len(better)] + [len(better[better['num_operations'] == i]) for i in range(1, 6)]
+    })
+    summary.to_csv('out/out_reachable/summary_stats.csv', index=False)
+
+    # Visualize
     plt.style.use('dark_background')
     fig, axes = plt.subplots(2, 2, figsize=(16, 12), facecolor='#1a1a1a')
+    cmap = LinearSegmentedColormap.from_list('green', ['#90EE90', '#52B788', '#2D6A4F', '#1B4332'])
 
-    colors_green = ['#90EE90', '#52B788', '#2D6A4F', '#1B4332']
-    cmap_green = LinearSegmentedColormap.from_list('green_gradient', colors_green)
+    for ax in axes.flat:
+        ax.set_facecolor('#1a1a1a')
+        ax.tick_params(colors='white')
+        ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:.1%}'))
+        ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: f'{y:.1%}'))
+        ax.set_xlabel('Volatility', color='white')
+        ax.set_ylabel('Return', color='white')
+        ax.grid(True, alpha=0.2, color='gray')
 
-    # Plot 1: All reachable portfolios
-    ax1 = axes[0, 0]
-    ax1.set_facecolor('#1a1a1a')
+    # Plot 1: All
+    axes[0, 0].scatter(results_df['volatility'], results_df['returns'], c=results_df['sharpe_ratio'], cmap=cmap,
+                       alpha=0.3, s=5)
+    axes[0, 0].scatter(current_std, current_return, marker='o', color='#FF6B6B', s=300, edgecolors='white', linewidth=2,
+                       label='Current', zorder=5)
+    axes[0, 0].set_title('All Portfolios (100K)', fontsize=14, color='white', fontweight='light')
+    axes[0, 0].legend()
 
-    sharpe_min = results_df['sharpe_ratio'].min()
-    sharpe_max = results_df['sharpe_ratio'].max()
+    # Plot 2-3: Categories
+    for idx, (mask, title) in enumerate([
+        ((better['returns'] > current_return) & (better['volatility'] <= current_std * 1.05), 'Higher Return'),
+        ((better['volatility'] < current_std) & (better['returns'] >= current_return * 0.95), 'Lower Volatility')
+    ]):
+        ax = axes[0, 1] if idx == 0 else axes[1, 0]
+        cat_data = better[mask]
+        if len(cat_data) > 0:
+            ax.scatter(cat_data['volatility'], cat_data['returns'], c=cat_data['sharpe_ratio'], cmap=cmap, s=30,
+                       alpha=0.6)
+            top = cat_data.nlargest(10, 'sharpe_ratio')
+            ax.scatter(top['volatility'], top['returns'], marker='*', s=300, color='gold', edgecolors='white',
+                       linewidth=2, label='Top 10', zorder=5)
+        ax.scatter(current_std, current_return, marker='o', color='#FF6B6B', s=300, edgecolors='white', linewidth=2,
+                   label='Current', zorder=5)
+        ax.set_title(title, fontsize=14, color='white', fontweight='light')
+        ax.legend()
 
-    # Background: all simulations
-    ax1.scatter(results_df['volatility'], results_df['returns'],
-                c=results_df['sharpe_ratio'], cmap=cmap_green, alpha=0.1, s=5)
+    # Plot 4: By operations
+    markers = ['o', 's', '^', 'D', 'v']
+    colors = ['#90EE90', '#52B788', '#2D6A4F', '#1B4332', '#0D3B1F']
+    for ops in range(1, 6):
+        ops_data = all_recommendations[all_recommendations['num_operations'] == ops]
+        if len(ops_data) > 0:
+            axes[1, 1].scatter(ops_data['volatility'], ops_data['returns'], color=colors[ops - 1], s=100,
+                               marker=markers[ops - 1], label=f'{ops} Op{"s" if ops > 1 else ""}',
+                               edgecolors='white', linewidths=1.5, alpha=0.8)
+    axes[1, 1].scatter(current_std, current_return, marker='o', color='#FF6B6B', s=300, edgecolors='white', linewidth=2,
+                       label='Current', zorder=6)
+    axes[1, 1].set_title('Top 10 by Operations', fontsize=14, color='white', fontweight='light')
+    axes[1, 1].legend(fontsize=9)
 
-    # Reachable portfolios
-    scatter1 = ax1.scatter(reachable['volatility'], reachable['returns'],
-                           c=reachable['sharpe_ratio'], cmap=cmap_green, alpha=0.5, s=20)
-
-    # Current portfolio
-    ax1.scatter(current_std, current_return, marker='o', color='#FF6B6B', s=300,
-                edgecolors='white', linewidth=2, label='Current', zorder=5)
-
-    ax1.set_title('Reachable Portfolios (≤10% Rebalancing)', fontsize=14, fontweight='light', color='white')
-    ax1.set_xlabel('Volatility', fontsize=11, color='white')
-    ax1.set_ylabel('Expected Return', fontsize=11, color='white')
-    ax1.legend(fontsize=10)
-    ax1.grid(True, alpha=0.2, color='gray')
-    ax1.tick_params(colors='white')
-    ax1.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: '{:.1%}'.format(x)))
-    ax1.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: '{:.1%}'.format(y)))
-
-    # Plot 2: Higher Return portfolios
-    ax2 = axes[0, 1]
-    ax2.set_facecolor('#1a1a1a')
-
-    if len(higher_return_portfolios) > 0:
-        ax2.scatter(reachable['volatility'], reachable['returns'], alpha=0.1, s=10, color='gray')
-        scatter2 = ax2.scatter(higher_return_portfolios['volatility'], higher_return_portfolios['returns'],
-                               c=higher_return_portfolios['sharpe_ratio'], cmap=cmap_green, s=50, alpha=0.7)
-
-        if len(top_higher_return) > 0:
-            ax2.scatter(top_higher_return['volatility'], top_higher_return['returns'],
-                        marker='*', s=400, color='gold', edgecolors='white', linewidth=2,
-                        label='Top 5', zorder=5)
-
-    ax2.scatter(current_std, current_return, marker='o', color='#FF6B6B', s=300,
-                edgecolors='white', linewidth=2, label='Current', zorder=5)
-
-    ax2.set_title('Higher Return Options', fontsize=14, fontweight='light', color='white')
-    ax2.set_xlabel('Volatility', fontsize=11, color='white')
-    ax2.set_ylabel('Expected Return', fontsize=11, color='white')
-    ax2.legend(fontsize=10)
-    ax2.grid(True, alpha=0.2, color='gray')
-    ax2.tick_params(colors='white')
-    ax2.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: '{:.1%}'.format(x)))
-    ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: '{:.1%}'.format(y)))
-
-    # Plot 3: Lower Volatility portfolios
-    ax3 = axes[1, 0]
-    ax3.set_facecolor('#1a1a1a')
-
-    if len(lower_vol_portfolios) > 0:
-        ax3.scatter(reachable['volatility'], reachable['returns'], alpha=0.1, s=10, color='gray')
-        scatter3 = ax3.scatter(lower_vol_portfolios['volatility'], lower_vol_portfolios['returns'],
-                               c=lower_vol_portfolios['sharpe_ratio'], cmap=cmap_green, s=50, alpha=0.7)
-
-        if len(top_lower_vol) > 0:
-            ax3.scatter(top_lower_vol['volatility'], top_lower_vol['returns'],
-                        marker='*', s=400, color='gold', edgecolors='white', linewidth=2,
-                        label='Top 5', zorder=5)
-
-    ax3.scatter(current_std, current_return, marker='o', color='#FF6B6B', s=300,
-                edgecolors='white', linewidth=2, label='Current', zorder=5)
-
-    ax3.set_title('Lower Volatility Options', fontsize=14, fontweight='light', color='white')
-    ax3.set_xlabel('Volatility', fontsize=11, color='white')
-    ax3.set_ylabel('Expected Return', fontsize=11, color='white')
-    ax3.legend(fontsize=10)
-    ax3.grid(True, alpha=0.2, color='gray')
-    ax3.tick_params(colors='white')
-    ax3.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: '{:.1%}'.format(x)))
-    ax3.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: '{:.1%}'.format(y)))
-
-    # Plot 4: Better Sharpe portfolios
-    ax4 = axes[1, 1]
-    ax4.set_facecolor('#1a1a1a')
-
-    if len(better_sharpe_portfolios) > 0:
-        ax4.scatter(reachable['volatility'], reachable['returns'], alpha=0.1, s=10, color='gray')
-        scatter4 = ax4.scatter(better_sharpe_portfolios['volatility'], better_sharpe_portfolios['returns'],
-                               c=better_sharpe_portfolios['sharpe_ratio'], cmap=cmap_green, s=50, alpha=0.7)
-
-        if len(top_better_sharpe) > 0:
-            ax4.scatter(top_better_sharpe['volatility'], top_better_sharpe['returns'],
-                        marker='*', s=400, color='gold', edgecolors='white', linewidth=2,
-                        label='Top 5', zorder=5)
-
-    ax4.scatter(current_std, current_return, marker='o', color='#FF6B6B', s=300,
-                edgecolors='white', linewidth=2, label='Current', zorder=5)
-
-    ax4.set_title('Better Sharpe Ratio Options', fontsize=14, fontweight='light', color='white')
-    ax4.set_xlabel('Volatility', fontsize=11, color='white')
-    ax4.set_ylabel('Expected Return', fontsize=11, color='white')
-    ax4.legend(fontsize=10)
-    ax4.grid(True, alpha=0.2, color='gray')
-    ax4.tick_params(colors='white')
-    ax4.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: '{:.1%}'.format(x)))
-    ax4.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: '{:.1%}'.format(y)))
-
-    plt.suptitle(f'{portfolio_name} - Reachable Portfolio Improvements',
-                 fontsize=18, fontweight='light', color='#52B788', y=0.995)
-
+    plt.suptitle(f'{portfolio_name} - Buy-Only Improvements (10% Budget, 1-5 Ops)', fontsize=18, color='#52B788',
+                 fontweight='light', y=0.995)
     plt.tight_layout()
     plt.savefig('out/out_reachable/reachable_improvements.jpg', dpi=300, bbox_inches='tight', facecolor='#1a1a1a')
     plt.close()
 
-    print("Reachable improvements analysis complete!")
-    print(f"Total reachable portfolios: {len(reachable):,}")
-    print(f"Higher return options: {len(higher_return_portfolios):,}")
-    print(f"Lower volatility options: {len(lower_vol_portfolios):,}")
-    print(f"Better Sharpe options: {len(better_sharpe_portfolios):,}")
-    print(f"Top recommendations saved: {len(all_recommendations)}")
+    print("Complete!")
+    for ops in range(1, 6):
+        print(f"  {ops} op{'s' if ops > 1 else ''}: {len(better[better['num_operations'] == ops]):,}")
 
-    return all_recommendations, summary_stats
+    return all_recommendations, summary
 
 
 if __name__ == "__main__":
