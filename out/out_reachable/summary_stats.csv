@@ -1,10 +1,8 @@
 metric,value
-Total Portfolios Generated,50000
-Portfolios with Better Sharpe,25594
-Higher Return Options,20271
-Lower Volatility Options,16453
-Single Operation Portfolios,1
-Two Operation Portfolios,10
-Best Return Improvement,77.88%
-Best Volatility Reduction,-4.43%
-Best Sharpe Improvement,85.83%
+Total Generated,100000
+Better Sharpe,52879
+1 Ops,10024
+2 Ops,10211
+3 Ops,10644
+4 Ops,10934
+5 Ops,11066
