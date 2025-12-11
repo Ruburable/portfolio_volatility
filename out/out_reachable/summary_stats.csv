@@ -1,8 +1,10 @@
 metric,value
-Total Reachable Portfolios,28817
-Higher Return Options,11289
-Lower Volatility Options,9110
-Better Sharpe Options,15176
-Best Return Improvement,125.81%
-Best Volatility Reduction,-10.13%
-Best Sharpe Improvement,125.73%
+Total Portfolios Generated,50000
+Portfolios with Better Sharpe,25594
+Higher Return Options,20271
+Lower Volatility Options,16453
+Single Operation Portfolios,1
+Two Operation Portfolios,10
+Best Return Improvement,77.88%
+Best Volatility Reduction,-4.43%
+Best Sharpe Improvement,85.83%
