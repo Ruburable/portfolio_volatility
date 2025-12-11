@@ -9,10 +9,13 @@ from datetime import datetime
 
 
 def generate_buy_only_portfolios(current_weights, tickers, num_portfolios=100000):
+    """Generate diverse portfolios via Monte Carlo"""
     portfolios = []
     budget = 0.10
 
-    for _ in range(num_portfolios):
+    np.random.seed(42)
+
+    for i in range(num_portfolios):
         num_buys = np.random.choice([1, 2, 3, 4, 5])
         num_buys = min(num_buys, len(tickers))
         buy_indices = np.random.choice(len(tickers), size=num_buys, replace=False)
@@ -20,10 +23,26 @@ def generate_buy_only_portfolios(current_weights, tickers, num_portfolios=100000
         if num_buys == 1:
             buy_amounts = [budget]
         else:
-            splits = np.random.dirichlet(np.ones(num_buys))
-            splits = np.maximum(splits, 0.01)
-            splits = splits / splits.sum()
-            buy_amounts = splits * budget
+            # Varied allocation strategies
+            if i % 4 == 0:
+                buy_amounts = [budget / num_buys] * num_buys
+            elif i % 4 == 1:
+                main_pct = np.random.uniform(0.70, 0.85)
+                main_amount = budget * main_pct
+                remaining = budget - main_amount
+                other_amounts = np.random.dirichlet(np.ones(num_buys - 1)) * remaining
+                buy_amounts = np.append([main_amount], other_amounts)
+                np.random.shuffle(buy_amounts)
+            elif i % 4 == 2:
+                main_pct = np.random.uniform(0.40, 0.60)
+                main_amount = budget * main_pct
+                remaining = budget - main_amount
+                other_amounts = np.random.dirichlet(np.ones(num_buys - 1)) * remaining
+                buy_amounts = np.append([main_amount], other_amounts)
+                np.random.shuffle(buy_amounts)
+            else:
+                splits = np.random.dirichlet(np.ones(num_buys) * 2)
+                buy_amounts = splits * budget
 
         new_weights = current_weights.copy()
         total_before = np.sum(new_weights)
@@ -33,16 +52,31 @@ def generate_buy_only_portfolios(current_weights, tickers, num_portfolios=100000
 
         new_weights = new_weights / np.sum(new_weights)
 
+        # Create trade instructions
         trades = []
+        buy_stocks = []
         for idx, amount in zip(buy_indices, buy_amounts):
             pct = (amount / total_before) * 100
             trades.append(f"Buy {tickers[idx]} {pct:.1f}%")
+            buy_stocks.append(tickers[idx])
+
+        # Create unique signature: sorted list of (stock, rounded_amount) to detect duplicates
+        signature_parts = []
+        for idx, amount in zip(buy_indices, buy_amounts):
+            pct = (amount / total_before) * 100
+            # Round to 0.5% precision to catch near-duplicates
+            rounded_pct = round(pct * 2) / 2  # Round to nearest 0.5%
+            if rounded_pct > 0:  # Only include non-zero amounts
+                signature_parts.append(f"{tickers[idx]}:{rounded_pct:.1f}")
+
+        signature = '|'.join(sorted(signature_parts))
 
         portfolios.append({
             'weights': new_weights,
             'trades': '; '.join(trades),
             'num_operations': num_buys,
-            'buy_tickers': ','.join([tickers[i] for i in buy_indices])
+            'buy_tickers': ','.join(buy_stocks),
+            'signature': signature  # For deduplication
         })
 
     return portfolios
@@ -81,7 +115,14 @@ def main():
 
     print("Calculating metrics...")
     results = []
+    seen_signatures = set()
+
     for p in generated:
+        # Skip if we've seen this exact portfolio before
+        if p['signature'] in seen_signatures:
+            continue
+        seen_signatures.add(p['signature'])
+
         ret = np.sum(p['weights'] * mean_returns.values)
         vol = np.sqrt(np.dot(p['weights'].T, np.dot(cov_matrix.values, p['weights'])))
         sharpe = ret / vol if vol > 0 else 0
@@ -90,20 +131,22 @@ def main():
             'trades': p['trades'], 'num_operations': p['num_operations'],
             'return_improvement': ((ret - current_return) / current_return * 100),
             'volatility_change': ((vol - current_std) / current_std * 100),
-            'sharpe_improvement': ((sharpe - current_sharpe) / current_sharpe * 100)
+            'sharpe_improvement': ((sharpe - current_sharpe) / current_sharpe * 100),
+            'signature': p['signature']
         })
 
     results_df = pd.DataFrame(results)
     better = results_df[results_df['sharpe_ratio'] > current_sharpe].copy()
 
-    print(f"Found {len(better):,} better portfolios")
+    print(f"Generated {len(results_df):,} unique portfolios, {len(better):,} better than current")
 
     # Get top 10 for each operation count
     top_by_ops = []
     for ops in range(1, 6):
-        ops_data = better[better['num_operations'] == ops]
+        ops_data = better[better['num_operations'] == ops].copy()
         if len(ops_data) > 0:
-            top_10 = ops_data.nlargest(10, 'sharpe_ratio')
+            # Simply take top 10 by Sharpe - duplicates already removed
+            top_10 = ops_data.nlargest(min(10, len(ops_data)), 'sharpe_ratio')
             top_by_ops.append(top_10)
 
     all_recommendations = pd.concat(top_by_ops, ignore_index=True) if top_by_ops else pd.DataFrame()
