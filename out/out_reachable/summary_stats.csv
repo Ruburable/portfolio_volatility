@@ -1,8 +1,8 @@
 metric,value
-Total Generated,100000
-Better Sharpe,52879
-1 Ops,10024
-2 Ops,10211
-3 Ops,10644
-4 Ops,10934
-5 Ops,11066
+Total Generated,25133
+Better Sharpe,13835
+1 Ops,3
+2 Ops,270
+3 Ops,2628
+4 Ops,5063
+5 Ops,5871
