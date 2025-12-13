@@ -1,10 +1,10 @@
 metric,value
-Expected Return Distance,0.29179701518630263
-Volatility Distance,-0.0018491900554663265
-Sharpe Ratio Distance,1.4640097837812864
-Return Distance (%),511.5140449578282
-Volatility Distance (%),-0.9176196799877566
-Sharpe Distance (%),517.1773861132374
-Total Weights Change (L1),1.3548173938718118
-Alpha,-0.18744045817808597
-Beta,0.6666713061051434
+Expected Return Distance,0.32109071471383055
+Volatility Distance,0.014185702777456843
+Sharpe Ratio Distance,1.4699406310986527
+Return Distance (%),562.8651074638228
+Volatility Distance (%),7.039340618673289
+Sharpe Distance (%),519.2724129582168
+Total Weights Change (L1),1.0945704098449645
+Alpha,-0.1874404401270994
+Beta,0.6666713088528451
