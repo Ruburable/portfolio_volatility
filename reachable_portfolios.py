@@ -11,7 +11,7 @@ from datetime import datetime
 def generate_buy_only_portfolios(current_weights, tickers, num_portfolios=100000):
     """Generate diverse portfolios via Monte Carlo"""
     portfolios = []
-    budget = 0.10
+    budget = 0.10  # Fixed to exactly 10%
 
     np.random.seed(42)
 
