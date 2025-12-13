@@ -17,17 +17,17 @@ def run_script(script_name):
 def main():
     print("Starting portfolio analysis pipeline...\n")
 
-    print("Step 1/4: Running calculations and optimization...")
+    print("Step 1/3: Running calculations and optimization...")
     if not run_script('calculate_and_optimise.py'):
         print("Calculation and optimization failed. Stopping pipeline.")
         return
 
-    print("\nStep 2/4: Analyzing reachable portfolios...")
+    print("\nStep 2/3: Analyzing reachable portfolios...")
     if not run_script('reachable_portfolios.py'):
         print("Reachable portfolios analysis failed. Stopping pipeline.")
         return
 
-    print("\nStep 3/4: Creating visualizations and generating report...")
+    print("\nStep 3/3: Creating visualizations and generating report...")
     if not run_script('visualise_and_summarise.py'):
         print("Visualization and report generation failed. Stopping pipeline.")
         return
