@@ -11,7 +11,7 @@ from datetime import datetime
 def generate_buy_only_portfolios(current_weights, tickers, num_portfolios=100000):
     """Generate diverse portfolios via Monte Carlo"""
     portfolios = []
-    budget = 0.10
+    budget = 0.10  # Fixed to exactly 10%
 
     np.random.seed(42)
 
@@ -52,18 +52,34 @@ def generate_buy_only_portfolios(current_weights, tickers, num_portfolios=100000
 
         new_weights = new_weights / np.sum(new_weights)
 
-        # Create trade instructions
+        # Create trade instructions - cap display at 10% total
         trades = []
         buy_stocks = []
+        total_pct = 0
         for idx, amount in zip(buy_indices, buy_amounts):
             pct = (amount / total_before) * 100
+            total_pct += pct
+
+        # Normalize if total exceeds 10%
+        scale_factor = 10.0 / total_pct if total_pct > 10.0 else 1.0
+
+        for idx, amount in zip(buy_indices, buy_amounts):
+            pct = (amount / total_before) * 100 * scale_factor
             trades.append(f"Buy {tickers[idx]} {pct:.1f}%")
             buy_stocks.append(tickers[idx])
 
         # Create unique signature: sorted list of (stock, rounded_amount) to detect duplicates
         signature_parts = []
+        total_sig_pct = 0
         for idx, amount in zip(buy_indices, buy_amounts):
             pct = (amount / total_before) * 100
+            total_sig_pct += pct
+
+        # Normalize signature percentages if total exceeds 10%
+        sig_scale = 10.0 / total_sig_pct if total_sig_pct > 10.0 else 1.0
+
+        for idx, amount in zip(buy_indices, buy_amounts):
+            pct = (amount / total_before) * 100 * sig_scale
             # Round to 0.5% precision to catch near-duplicates
             rounded_pct = round(pct * 2) / 2  # Round to nearest 0.5%
             if rounded_pct > 0:  # Only include non-zero amounts

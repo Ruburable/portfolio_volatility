@@ -17,32 +17,28 @@ def run_script(script_name):
 def main():
     print("Starting portfolio analysis pipeline...\n")
 
-    print("Step 1/4: Running calculations...")
-    if not run_script('calculate.py'):
-        print("Calculation failed. Stopping pipeline.")
+    print("Step 1/3: Running calculations and optimization...")
+    if not run_script('calculate_and_optimise.py'):
+        print("Calculation and optimization failed. Stopping pipeline.")
         return
 
-    print("\nStep 2/4: Running optimisation...")
-    if not run_script('optimise.py'):
-        print("Optimisation failed. Stopping pipeline.")
+    print("\nStep 2/3: Analyzing reachable portfolios...")
+    if not run_script('reachable_portfolios.py'):
+        print("Reachable portfolios analysis failed. Stopping pipeline.")
         return
 
-    print("\nStep 3/4: Creating visualisations...")
-    if not run_script('visualise.py'):
-        print("Visualisation failed. Stopping pipeline.")
-        return
-
-    print("\nStep 4/4: Generating report...")
-    if not run_script('summarise.py'):
-        print("Report generation failed. Stopping pipeline.")
+    print("\nStep 3/3: Creating visualizations and generating report...")
+    if not run_script('visualise_and_summarise.py'):
+        print("Visualization and report generation failed. Stopping pipeline.")
         return
 
     print("\n" + "=" * 50)
     print("Pipeline complete! All outputs saved in 'out' folder:")
-    print("  - out/out_calculate/")
-    print("  - out/out_optimise/")
-    print("  - out/out_visualise/")
-    print("  - out/portfolio_report.html")
+    print("  - out/out_calculate/       (volatility & correlation data)")
+    print("  - out/out_optimise/        (optimization results)")
+    print("  - out/out_reachable/       (buy-only portfolio recommendations)")
+    print("  - out/out_visualise/       (charts and graphs)")
+    print("  - out/portfolio_report.html (interactive report)")
     print("=" * 50)
 
 
